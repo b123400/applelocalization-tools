@@ -1,26 +1,41 @@
 import { path, Pool } from "./deps.ts";
-import "https://deno.land/x/dotenv/load.ts";
+// import "https://deno.land/x/dotenv/load.ts";
+import { DB } from "https://deno.land/x/sqlite/mod.ts";
 
-const POOL_CONNECTIONS = 4;
-const dbPool = new Pool({
-  hostname: "127.0.0.1",
-  port: 5432,
-  user: Deno.env.get("POSTGRES_USER"),
-  password: Deno.env.get("POSTGRES_PASSWORD"),
-  database: Deno.env.get("POSTGRES_DB"),
-}, POOL_CONNECTIONS);
+const dbs = {};
+const platform = 'macos';
 
-const client = await dbPool.connect();
+function getDBForLanguage(language:string): DB {
+  const existing = dbs[language];
+  if (existing) return existing;
+  const db = new DB(`output/${language}.db`);
+  db.execute(`
+    CREATE TABLE IF NOT EXISTS translations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_id integer NOT NULL,
+      source text NOT NULL,
+      target text NOT NULL,
+      file_name text NOT NULL,
+      bundle_path text NOT NULL
+    );
+  `);
+  dbs[language] = db;
+  return db;
+}
 
 let counter = 0;
 let groupId = 1;
+let dirIndex = 0;
 const groupIds: { [key: string]: number } = {};
-const rootDir = "data/macos";
-for await (const directory of Deno.readDir(rootDir)) {
+const rootDir = "data/" + platform;
+const directories = [...Deno.readDirSync(rootDir)];
+for (const directory of directories) {
   const localizable: Localizable = JSON.parse(
     await Deno.readTextFile(path.join(rootDir, directory.name)),
   );
-  for (const key of Object.keys(localizable.localizations)) {
+  const localizationKeys = Object.keys(localizable.localizations);
+  let localizationKeyIndex = 0;
+  for (const key of localizationKeys) {
     const localizations: [Localization] = localizable.localizations[key];
     for (const localization of localizations) {
       if (!key) {
@@ -38,27 +53,33 @@ for await (const directory of Deno.readDir(rootDir)) {
         groupId++;
       }
 
-      await client.queryArray(
-        `INSERT INTO macos (group_id, source, target, language, file_name, bundle_name, bundle_path, platform) VALUES($1, $2, $3, $4, $5, $6, $7, $8);`,
+      const db = getDBForLanguage(localization.language);
+      db.query(
+        `INSERT INTO translations (group_id, source, target, file_name, bundle_path) VALUES($1, $2, $3, $4, $5);`,
         [
           gid,
           key,
           localization.target,
-          localization.language,
           localization.filename,
-          localizable.framework,
           localizable.bundlePath,
-          "macOS",
         ],
       );
 
       counter++;
+
+      await Deno.stdout.write(new TextEncoder().encode("\r\x1b[K"));
+      await Deno.stdout.write(new TextEncoder().encode(`${dirIndex}/${directories.length}\t${localizationKeyIndex}/${localizationKeys.length}\tTotal: ${counter}`));
     }
+    localizationKeyIndex++;
   }
+  dirIndex++;
 }
 
-console.log(counter);
-client.release();
+console.log('Total entry: ' + counter);
+for (const lang in dbs) {
+  const db = dbs[lang];
+  db.close();
+}
 
 interface Localizable {
   localizations: { [key: string]: [Localization] };

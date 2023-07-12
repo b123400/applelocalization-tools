@@ -2,12 +2,12 @@ import { path, Pool } from "./deps.ts";
 import { Database } from "https://deno.land/x/sqlite3@0.9.1/mod.ts";
 
 const dbs = {};
-const platform = 'macos';
+const platform = 'ios' // 'macos';
 
 function getDBForLanguage(language:string): DB {
   const existing = dbs[language];
   if (existing) return existing;
-  const db = new Database(`output/${language}.db`);
+  const db = new Database(`output/${platform}/${language}.db`);
   db.exec(`
     CREATE TABLE IF NOT EXISTS translations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1,6 +1,5 @@
 import { path, Pool } from "./deps.ts";
-// import "https://deno.land/x/dotenv/load.ts";
-import { DB } from "https://deno.land/x/sqlite/mod.ts";
+import { Database } from "https://deno.land/x/sqlite3@0.9.1/mod.ts";
 
 const dbs = {};
 const platform = 'macos';
@@ -8,8 +7,8 @@ const platform = 'macos';
 function getDBForLanguage(language:string): DB {
   const existing = dbs[language];
   if (existing) return existing;
-  const db = new DB(`output/${language}.db`);
-  db.execute(`
+  const db = new Database(`output/${language}.db`);
+  db.exec(`
     CREATE TABLE IF NOT EXISTS translations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       group_id integer NOT NULL,
@@ -54,15 +53,13 @@ for (const directory of directories) {
       }
 
       const db = getDBForLanguage(localization.language);
-      db.query(
+      db.exec(
         `INSERT INTO translations (group_id, source, target, file_name, bundle_path) VALUES($1, $2, $3, $4, $5);`,
-        [
           gid,
           key,
           localization.target,
           localization.filename,
           localizable.bundlePath,
-        ],
       );
 
       counter++;

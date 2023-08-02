@@ -2,7 +2,11 @@ import { path, Pool } from "./deps.ts";
 import { Database } from "https://deno.land/x/sqlite3@0.9.1/mod.ts";
 
 const dbs = {};
-const platform = 'ios' // 'macos';
+
+const platform = Deno.args[0]; // ios or macos
+if (platform !== 'ios' && platform !== 'macos') {
+  throw new Error('Unknown platform: ' + platform);
+}
 
 function getDBForLanguage(language:string): DB {
   const existing = dbs[language];
@@ -11,10 +15,8 @@ function getDBForLanguage(language:string): DB {
   db.exec(`
     CREATE TABLE IF NOT EXISTS translations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      group_id integer NOT NULL,
       source text NOT NULL,
       target text NOT NULL,
-      file_name text NOT NULL,
       bundle_path text NOT NULL
     );
   `);
@@ -23,9 +25,7 @@ function getDBForLanguage(language:string): DB {
 }
 
 let counter = 0;
-let groupId = 1;
 let dirIndex = 0;
-const groupIds: { [key: string]: number } = {};
 const rootDir = "data/" + platform;
 const directories = [...Deno.readDirSync(rootDir)];
 for (const directory of directories) {
@@ -44,21 +44,11 @@ for (const directory of directories) {
         continue;
       }
 
-      const k = `${localizable.bundlePath}:${key}`;
-      let gid = groupIds[k];
-      if (!gid) {
-        gid = groupId;
-        groupIds[k] = gid;
-        groupId++;
-      }
-
       const db = getDBForLanguage(localization.language);
       db.exec(
-        `INSERT INTO translations (group_id, source, target, file_name, bundle_path) VALUES($1, $2, $3, $4, $5);`,
-          gid,
+        `INSERT INTO translations (source, target, bundle_path) VALUES($1, $2, $3);`,
           key,
           localization.target,
-          localization.filename,
           localizable.bundlePath,
       );
 

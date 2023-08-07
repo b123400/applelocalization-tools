@@ -15,8 +15,8 @@ function getDBForLanguage(language:string): DB {
   db.exec(`
     CREATE TABLE IF NOT EXISTS translations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      source text NOT NULL,
-      target text NOT NULL,
+      source text NOT NULL COLLATE NOCASE,
+      target text NOT NULL COLLATE NOCASE,
       bundle_path text NOT NULL
     );
   `);

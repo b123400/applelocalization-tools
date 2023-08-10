@@ -25,9 +25,76 @@ function getDBForLanguage(language:string): DB {
 }
 
 let counter = 0;
+let skippedCount = 0;
 let dirIndex = 0;
 const rootDir = "data/" + platform;
 const directories = [...Deno.readDirSync(rootDir)];
+
+const blacklistLower = new Set<string>([
+  '<dnl',
+  '<no loc',
+  '<noloc>',
+  '< no loc',
+  '<do not',
+  '< do not loc',
+  '<donotloc>',
+  '<do not loc',
+  '<don\'t localize',
+  '<do not localize',
+  '<do_not_localize',
+  '<<dnl',
+  '<< dnl',
+  '<<do not',
+  '<< do not',
+  '<<< do not localize',
+  '<<don\'t localize',
+  '<< don\'t localize',
+  '<< no loc >>',
+  '<<>>',
+  '{',
+  '${',
+  'kbit/s',
+  'text cell',
+  'table view cell',
+  'text field cell',
+  'itemview',
+  'itema',
+  'itemb',
+  'itemc',
+  '0.00',
+  '0,00',
+]);
+const exactBlacklist = new Set<string>([
+  '-',
+  ',',
+  ' ',
+  '0',
+  '1',
+  '2',
+  '=',
+  '…',
+  '”',
+  '--',
+  '″',
+  '′',
+  '.',
+  '+',
+  '*',
+  '?',
+  ')',
+  '(',
+]);
+function shouldInclude(source:string, target:string) {
+  const lowerTarget = target.toLowerCase();
+  for (const b of blacklistLower) {
+    if (lowerTarget.includes(b)) return false;
+  }
+  if (/^item\s?[0-9]\$*/.test(lowerTarget)) return false;
+  if (/^objekt\s?[0-9]\$*/.test(lowerTarget)) return false;
+  if (exactBlacklist.has(lowerTarget)) return false;
+  return true;
+}
+
 for (const directory of directories) {
   const localizable: Localizable = JSON.parse(
     await Deno.readTextFile(path.join(rootDir, directory.name)),
@@ -45,17 +112,21 @@ for (const directory of directories) {
       }
 
       const db = getDBForLanguage(localization.language);
-      db.exec(
-        `INSERT INTO translations (source, target, bundle_path) VALUES($1, $2, $3);`,
-          key,
-          localization.target,
-          localizable.bundlePath,
-      );
+      if (shouldInclude(key, localization.target)) {
+        db.exec(
+          `INSERT INTO translations (source, target, bundle_path) VALUES($1, $2, $3);`,
+            key,
+            localization.target,
+            localizable.bundlePath,
+        );
+      } else {
+        skippedCount++;
+      }
 
       counter++;
 
       await Deno.stdout.write(new TextEncoder().encode("\r\x1b[K"));
-      await Deno.stdout.write(new TextEncoder().encode(`${dirIndex}/${directories.length}\t${localizationKeyIndex}/${localizationKeys.length}\tTotal: ${counter}`));
+      await Deno.stdout.write(new TextEncoder().encode(`${dirIndex}/${directories.length}\t${localizationKeyIndex}/${localizationKeys.length}\tTotal: ${counter}\tSkipped: ${skippedCount}`));
     }
     localizationKeyIndex++;
   }

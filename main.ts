@@ -1,4 +1,4 @@
-import { path, Pool } from "./deps.ts";
+import { path } from "./deps.ts";
 import { Database } from "https://deno.land/x/sqlite3@0.9.1/mod.ts";
 
 const dbs = {};
@@ -115,8 +115,8 @@ for (const directory of directories) {
       if (shouldInclude(key, localization.target)) {
         db.exec(
           `INSERT INTO translations (source, target, bundle_path) VALUES($1, $2, $3);`,
-            key,
-            localization.target,
+            key.trim(),
+            localization.target.trim(),
             localizable.bundlePath,
         );
       } else {
